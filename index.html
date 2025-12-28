@@ -199,21 +199,42 @@
             background-clip: text;
         }
 
-        .theme-toggle {
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .header-btn {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
             color: var(--text-primary);
-            padding: 12px 20px;
-            border-radius: 24px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
             cursor: pointer;
             transition: all 0.2s;
-            font-family: inherit;
-            font-size: 16px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .theme-toggle:hover {
+        .header-btn:hover {
             background: var(--hover-bg);
             transform: translateY(-2px);
+            border-color: var(--accent-primary);
+        }
+
+        .search-btn-main {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border: none;
+            color: white;
+        }
+
+        .search-btn-main:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 4px 20px rgba(0, 217, 255, 0.3);
         }
 
         /* Track Grid */
@@ -498,8 +519,9 @@
 
             .player {
                 grid-template-columns: 1fr;
-                gap: 12px;
-                padding: 16px;
+                gap: 8px;
+                padding: 12px 16px;
+                padding-bottom: max(12px, env(safe-area-inset-bottom));
                 transition: transform 0.3s ease;
             }
 
@@ -508,19 +530,41 @@
                 pointer-events: none;
             }
 
+            .player-track-info {
+                gap: 12px;
+            }
+
+            .player-album-art {
+                width: 48px;
+                height: 48px;
+                font-size: 20px;
+            }
+
+            .player-track-name {
+                font-size: 13px;
+            }
+
+            .player-track-artist {
+                font-size: 11px;
+            }
+
+            .player-controls {
+                gap: 8px;
+            }
+
             .player-btn {
-                padding: 12px;
-                font-size: 22px;
+                padding: 10px;
+                font-size: 20px;
             }
 
             .player-btn.play-btn {
-                width: 56px;
-                height: 56px;
-                font-size: 24px;
+                width: 52px;
+                height: 52px;
+                font-size: 22px;
             }
 
             .player-buttons {
-                gap: 24px;
+                gap: 20px;
             }
 
             .player-extra {
@@ -530,6 +574,14 @@
 
             .volume-control {
                 display: none; /* Hide volume slider on mobile to save space */
+            }
+
+            .player-progress {
+                gap: 8px;
+            }
+
+            .player-time {
+                font-size: 11px;
             }
 
             .track-item {
@@ -727,11 +779,37 @@
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
             border-radius: 16px;
-            padding: 32px;
+            padding: 24px;
             max-width: 500px;
             width: 90%;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
             box-shadow: var(--shadow);
             animation: slideUp 0.3s ease-out;
+        }
+
+        .modal-body {
+            overflow-y: auto;
+            flex: 1;
+            padding-right: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .modal-body::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .modal-body::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+        }
+
+        .modal-body::-webkit-scrollbar-thumb {
+            background: var(--text-muted);
+            border-radius: 3px;
         }
 
         @keyframes slideUp {
@@ -777,11 +855,7 @@
             transform: rotate(90deg);
         }
 
-        .modal-body {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
+        /* modal-body styles are defined above with scrolling */
 
         .form-group {
             display: flex;
@@ -817,7 +891,10 @@
         .modal-actions {
             display: flex;
             gap: 12px;
-            margin-top: 8px;
+            margin-top: 16px;
+            flex-shrink: 0;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
         }
 
         .btn {
@@ -1206,7 +1283,7 @@
         <div class="main-content">
             <!-- Sidebar -->
             <div class="sidebar" id="sidebar">
-                <div class="logo">MAYA WORLD MUSIC <small style="font-size: 10px; opacity: 0.5;">v2.0</small></div>
+                <div class="logo">MAYA WORLD MUSIC <small style="font-size: 10px; opacity: 0.5;">v3.3</small></div>
 
                 <div class="nav-section">
                     <div class="nav-item active" data-view="home">
@@ -1256,9 +1333,14 @@
             <div class="content-area">
                 <div class="content-header">
                     <h1 class="content-title" id="contentTitle">Discover</h1>
-                    <button class="theme-toggle" id="themeToggle">
-                        <i class="fas fa-moon"></i>
-                    </button>
+                    <div class="header-actions">
+                        <button class="header-btn search-btn-main" id="searchBtnMain" title="Search">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button class="header-btn theme-toggle" id="themeToggle" title="Toggle theme">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="search-container" id="searchContainer">
@@ -1502,22 +1584,26 @@
             });
 
             navigator.mediaSession.setActionHandler('previoustrack', () => {
-                playPreviousTrack();
+                playPrevious();
             });
 
             navigator.mediaSession.setActionHandler('nexttrack', () => {
-                playNextTrack();
+                playNext();
             });
 
             navigator.mediaSession.setActionHandler('seekbackward', (details) => {
-                if (youtubePlayer && currentTrack.youtubeId) {
+                if (currentTrack.audioBlob && html5Audio) {
+                    html5Audio.currentTime = Math.max(0, html5Audio.currentTime - (details.seekOffset || 10));
+                } else if (youtubePlayer && currentTrack.youtubeId) {
                     const seekTime = Math.max(0, youtubePlayer.getCurrentTime() - (details.seekOffset || 10));
                     youtubePlayer.seekTo(seekTime, true);
                 }
             });
 
             navigator.mediaSession.setActionHandler('seekforward', (details) => {
-                if (youtubePlayer && currentTrack.youtubeId) {
+                if (currentTrack.audioBlob && html5Audio) {
+                    html5Audio.currentTime = Math.min(currentTrack.duration, html5Audio.currentTime + (details.seekOffset || 10));
+                } else if (youtubePlayer && currentTrack.youtubeId) {
                     const seekTime = youtubePlayer.getCurrentTime() + (details.seekOffset || 10);
                     youtubePlayer.seekTo(seekTime, true);
                 }
@@ -1653,10 +1739,20 @@
             repeatBtn.addEventListener('click', toggleRepeat);
 
             progressBar.addEventListener('click', seekTrack);
+            progressBar.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                seekTrack(e);
+            });
             volumeSlider.addEventListener('click', changeVolume);
             volumeBtn.addEventListener('click', toggleMute);
 
             themeToggle.addEventListener('click', toggleTheme);
+
+            // Main search button
+            document.getElementById('searchBtnMain').addEventListener('click', () => {
+                switchView('search');
+                searchInput.focus();
+            });
 
             // Navigation
             document.querySelectorAll('.nav-item[data-view]').forEach(item => {
@@ -2659,20 +2755,27 @@ IMPORTANT:
             if (!currentTrack) return;
 
             const rect = progressBar.getBoundingClientRect();
-            const percent = (e.clientX - rect.left) / rect.width;
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
             currentTime = percent * currentTrack.duration;
 
-            // Seek YouTube player if applicable
-            if (currentTrack.youtubeId && youtubeReady && youtubePlayer) {
+            // Seek HTML5 audio player if applicable
+            if (currentTrack.audioBlob && html5Audio) {
                 try {
-                    youtubePlayer.seekTo(currentTime, true);
-                } catch (e) {
-                    console.error('YouTube seek failed:', e);
+                    html5Audio.currentTime = currentTime;
+                    updateProgressUI();
+                } catch (err) {
+                    console.error('HTML5 Audio seek failed:', err);
                 }
             }
-
-            if (isPlaying) {
-                startPlayback();
+            // Seek YouTube player if applicable
+            else if (currentTrack.youtubeId && youtubeReady && youtubePlayer) {
+                try {
+                    youtubePlayer.seekTo(currentTime, true);
+                    updateProgressUI();
+                } catch (err) {
+                    console.error('YouTube seek failed:', err);
+                }
             } else {
                 updateProgressUI();
             }
@@ -3219,7 +3322,8 @@ IMPORTANT:
         }
 
         // Initialize app
-        console.log('🎵 Maya World Music v2.0 loaded! Settings button available in sidebar.');
+        console.log('🎵 Maya World Music v3.3 loaded!');
+        console.log('✅ Features: MP3 Upload, Preview, Settings, Background Playback');
         console.log('YouTube API Key:', youtubeApiKey ? '✅ Set (' + youtubeApiKey.substring(0, 10) + '...)' : '⚠️ Not set (go to Settings to add)');
         init();
 
