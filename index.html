@@ -1613,7 +1613,35 @@
         }
 
         // Initialize
-        function init() {
+        async function init() {
+            // Load saved data from IndexedDB
+            try {
+                await openDatabase();
+
+                const savedTracks = await loadTracksFromDB();
+                if (savedTracks && savedTracks.length > 0) {
+                    tracks = savedTracks;
+                    // Update nextTrackId to avoid conflicts
+                    nextTrackId = Math.max(...tracks.map(t => t.id)) + 1;
+                    console.log(`📂 Loaded ${savedTracks.length} saved songs from library`);
+                }
+
+                const savedPlaylists = await loadPlaylistsFromDB();
+                if (savedPlaylists && savedPlaylists.length > 0) {
+                    playlists = savedPlaylists;
+                    nextPlaylistId = Math.max(...playlists.map(p => p.id)) + 1;
+                    console.log(`📂 Loaded ${savedPlaylists.length} saved playlists`);
+                }
+
+                // Load API key from IndexedDB (fallback to cookie)
+                const savedApiKey = await getSettingFromDB('youtubeApiKey');
+                if (savedApiKey) {
+                    youtubeApiKey = savedApiKey;
+                }
+            } catch (e) {
+                console.log('IndexedDB not available, using defaults:', e);
+            }
+
             renderTracks();
             renderPlaylists();
             setupEventListeners();
@@ -3007,8 +3035,10 @@ IMPORTANT:
                                     };
 
                                     tracks.push(newTrack);
+                                    // Save to IndexedDB for persistence
+                                    saveTrackToDB(newTrack, audioBlob).catch(console.error);
                                     renderTracks();
-                                    showNotification(`✅ Added "${name}" (Ad-Free MP3!)`);
+                                    showNotification(`✅ Added "${name}" (Saved to library!)`);
                                     overlay.remove();
                                     resolve();
                                 });
@@ -3059,8 +3089,10 @@ IMPORTANT:
                     };
 
                     tracks.push(newTrack);
+                    // Save to IndexedDB for persistence
+                    saveTrackToDB(newTrack).catch(console.error);
                     renderTracks();
-                    showNotification(`Added "${name}" ` + (videoId ? '(YouTube - may have ads)' : ''));
+                    showNotification(`Added "${name}" (Saved to library!)` + (videoId ? ' ⚠️ YouTube ads' : ''));
                     overlay.remove();
                 },
                 'Add Song'
@@ -3078,6 +3110,177 @@ IMPORTANT:
                 const parts = v.split('=');
                 return parts[0] === name ? decodeURIComponent(parts[1]) : r;
             }, '');
+        }
+
+        // IndexedDB for persistent storage
+        const DB_NAME = 'MayaWorldMusicDB';
+        const DB_VERSION = 1;
+        let db = null;
+
+        function openDatabase() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    db = request.result;
+                    resolve(db);
+                };
+
+                request.onupgradeneeded = (event) => {
+                    const database = event.target.result;
+
+                    // Store for tracks metadata
+                    if (!database.objectStoreNames.contains('tracks')) {
+                        database.createObjectStore('tracks', { keyPath: 'id' });
+                    }
+
+                    // Store for audio files (blobs)
+                    if (!database.objectStoreNames.contains('audioFiles')) {
+                        database.createObjectStore('audioFiles', { keyPath: 'trackId' });
+                    }
+
+                    // Store for playlists
+                    if (!database.objectStoreNames.contains('playlists')) {
+                        database.createObjectStore('playlists', { keyPath: 'id' });
+                    }
+
+                    // Store for app settings
+                    if (!database.objectStoreNames.contains('settings')) {
+                        database.createObjectStore('settings', { keyPath: 'key' });
+                    }
+                };
+            });
+        }
+
+        async function saveTrackToDB(track, audioBlob = null) {
+            if (!db) await openDatabase();
+
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['tracks', 'audioFiles'], 'readwrite');
+
+                // Save track metadata (without blob URL which isn't persistable)
+                const trackData = { ...track };
+                delete trackData.audioBlob; // Remove blob URL, we'll recreate it
+                trackData.hasAudioFile = !!audioBlob;
+
+                transaction.objectStore('tracks').put(trackData);
+
+                // Save audio file if provided
+                if (audioBlob) {
+                    // Convert blob URL to actual blob for storage
+                    fetch(audioBlob)
+                        .then(r => r.blob())
+                        .then(blob => {
+                            transaction.objectStore('audioFiles').put({
+                                trackId: track.id,
+                                blob: blob
+                            });
+                        })
+                        .catch(console.error);
+                }
+
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error);
+            });
+        }
+
+        async function loadTracksFromDB() {
+            if (!db) await openDatabase();
+
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['tracks', 'audioFiles'], 'readonly');
+                const tracksRequest = transaction.objectStore('tracks').getAll();
+                const audioRequest = transaction.objectStore('audioFiles').getAll();
+
+                let loadedTracks = [];
+                let audioFiles = [];
+
+                tracksRequest.onsuccess = () => {
+                    loadedTracks = tracksRequest.result || [];
+                };
+
+                audioRequest.onsuccess = () => {
+                    audioFiles = audioRequest.result || [];
+                };
+
+                transaction.oncomplete = () => {
+                    // Recreate blob URLs for audio files
+                    const audioMap = new Map(audioFiles.map(af => [af.trackId, af.blob]));
+
+                    loadedTracks.forEach(track => {
+                        if (track.hasAudioFile && audioMap.has(track.id)) {
+                            track.audioBlob = URL.createObjectURL(audioMap.get(track.id));
+                        }
+                    });
+
+                    resolve(loadedTracks);
+                };
+
+                transaction.onerror = () => reject(transaction.error);
+            });
+        }
+
+        async function deleteTrackFromDB(trackId) {
+            if (!db) await openDatabase();
+
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['tracks', 'audioFiles'], 'readwrite');
+                transaction.objectStore('tracks').delete(trackId);
+                transaction.objectStore('audioFiles').delete(trackId);
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error);
+            });
+        }
+
+        async function savePlaylistsToDB(playlistsData) {
+            if (!db) await openDatabase();
+
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['playlists'], 'readwrite');
+                const store = transaction.objectStore('playlists');
+
+                // Clear and re-save all playlists
+                store.clear();
+                playlistsData.forEach(playlist => store.put(playlist));
+
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error);
+            });
+        }
+
+        async function loadPlaylistsFromDB() {
+            if (!db) await openDatabase();
+
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['playlists'], 'readonly');
+                const request = transaction.objectStore('playlists').getAll();
+
+                request.onsuccess = () => resolve(request.result || []);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function saveSettingToDB(key, value) {
+            if (!db) await openDatabase();
+
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['settings'], 'readwrite');
+                transaction.objectStore('settings').put({ key, value });
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error);
+            });
+        }
+
+        async function getSettingFromDB(key) {
+            if (!db) await openDatabase();
+
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['settings'], 'readonly');
+                const request = transaction.objectStore('settings').get(key);
+                request.onsuccess = () => resolve(request.result?.value);
+                request.onerror = () => reject(request.error);
+            });
         }
 
         // Open settings modal
