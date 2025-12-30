@@ -1306,7 +1306,7 @@
         <div class="main-content">
             <!-- Sidebar -->
             <div class="sidebar" id="sidebar">
-                <div class="logo">MAYA WORLD MUSIC <small style="font-size: 10px; opacity: 0.5;">v3.3</small></div>
+                <div class="logo">MAYA WORLD MUSIC <small style="font-size: 10px; opacity: 0.5;">v3.4</small></div>
 
                 <div class="nav-section">
                     <div class="nav-item active" data-view="home">
@@ -3216,10 +3216,6 @@ IMPORTANT:
                     console.error('Failed to save audio blob:', e);
                 }
             }
-
-                transaction.oncomplete = () => resolve();
-                transaction.onerror = () => reject(transaction.error);
-            });
         }
 
         async function loadTracksFromDB() {
@@ -3567,7 +3563,7 @@ IMPORTANT:
         }
 
         // Initialize app
-        console.log('🎵 Maya World Music v3.3 loaded!');
+        console.log('🎵 Maya World Music v3.4 loaded!');
         console.log('✅ Features: MP3 Upload, Preview, Settings, Background Playback');
         console.log('YouTube API Key:', youtubeApiKey ? '✅ Set (' + youtubeApiKey.substring(0, 10) + '...)' : '⚠️ Not set (go to Settings to add)');
         init();
