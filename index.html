@@ -30,7 +30,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
     <!-- YouTube IFrame API (required for playback) -->
-    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="https://www.youtube.com/iframe_api" onerror="console.log('YouTube API failed to load')"></script>
 
     <style>
         :root {
@@ -1306,7 +1306,7 @@
         <div class="main-content">
             <!-- Sidebar -->
             <div class="sidebar" id="sidebar">
-                <div class="logo">MAYA WORLD MUSIC <small style="font-size: 10px; opacity: 0.5;">v3.5</small></div>
+                <div class="logo">MAYA WORLD MUSIC <small style="font-size: 10px; opacity: 0.5;">v3.6</small></div>
 
                 <div class="nav-section">
                     <div class="nav-item active" data-view="home">
@@ -1638,26 +1638,41 @@
         // Check if IndexedDB is available
         let indexedDBAvailable = false;
 
-        async function checkIndexedDB() {
-            try {
-                // Test if IndexedDB works
-                const testRequest = indexedDB.open('test', 1);
-                await new Promise((resolve, reject) => {
-                    testRequest.onerror = () => reject(testRequest.error);
-                    testRequest.onsuccess = () => {
-                        testRequest.result.close();
-                        indexedDB.deleteDatabase('test');
-                        resolve();
+        function checkIndexedDB() {
+            return new Promise((resolve) => {
+                try {
+                    // Check if indexedDB exists
+                    if (!window.indexedDB) {
+                        indexedDBAvailable = false;
+                        console.log('⚠️ IndexedDB not available - songs will not persist');
+                        resolve(false);
+                        return;
+                    }
+
+                    // Test if IndexedDB works
+                    const testRequest = indexedDB.open('_test_db_', 1);
+
+                    testRequest.onerror = () => {
+                        indexedDBAvailable = false;
+                        console.log('⚠️ IndexedDB not available - songs will not persist');
+                        resolve(false);
                     };
-                });
-                indexedDBAvailable = true;
-                console.log('✅ IndexedDB available');
-                return true;
-            } catch (e) {
-                indexedDBAvailable = false;
-                console.log('⚠️ IndexedDB not available - songs will not persist');
-                return false;
-            }
+
+                    testRequest.onsuccess = () => {
+                        try {
+                            testRequest.result.close();
+                            indexedDB.deleteDatabase('_test_db_');
+                        } catch (e) {}
+                        indexedDBAvailable = true;
+                        console.log('✅ IndexedDB available');
+                        resolve(true);
+                    };
+                } catch (e) {
+                    indexedDBAvailable = false;
+                    console.log('⚠️ IndexedDB not available - songs will not persist');
+                    resolve(false);
+                }
+            });
         }
 
         // Initialize
@@ -3591,85 +3606,49 @@ IMPORTANT:
         }
 
         // Initialize app
-        console.log('🎵 Maya World Music v3.5 loaded!');
+        console.log('🎵 Maya World Music v3.6 loaded!');
         console.log('✅ Features: MP3 Upload, Preview, Settings, Background Playback');
         console.log('YouTube API Key:', youtubeApiKey ? '✅ Set (' + youtubeApiKey.substring(0, 10) + '...)' : '⚠️ Not set (go to Settings to add)');
-        init();
 
-        // Register Service Worker for PWA
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(registration => {
-                        console.log('Service Worker registered:', registration);
-                    })
-                    .catch(error => {
-                        console.log('Service Worker registration failed:', error);
-                    });
-            });
+        // Run init with error handling
+        init().then(() => {
+            console.log('✅ App initialized successfully');
+        }).catch(err => {
+            console.error('Init error:', err);
+        });
+
+        // Register Service Worker for PWA (wrapped in try-catch)
+        try {
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('./sw.js')
+                        .then(registration => {
+                            console.log('Service Worker registered');
+                        })
+                        .catch(error => {
+                            console.log('Service Worker registration failed');
+                        });
+                });
+            }
+        } catch (e) {
+            console.log('Service Worker setup error');
         }
 
-        // PWA Install Prompt
-        let deferredPrompt;
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-
-            // Show install notification
-            const installNotification = document.createElement('div');
-            installNotification.style.cssText = `
-                position: fixed;
-                bottom: 100px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-                color: white;
-                padding: 16px 24px;
-                border-radius: 24px;
-                box-shadow: var(--shadow);
-                z-index: 10000;
-                display: flex;
-                gap: 12px;
-                align-items: center;
-                animation: fadeIn 0.3s ease-out;
-                max-width: 90%;
-            `;
-            installNotification.innerHTML = `
-                <i class="fas fa-mobile-alt"></i>
-                <span>Install Vibestream on your device</span>
-                <button style="background: white; color: var(--accent-primary); border: none; padding: 8px 16px; border-radius: 16px; font-weight: 600; cursor: pointer;">Install</button>
-                <button style="background: transparent; border: none; color: white; padding: 8px; cursor: pointer; font-size: 18px;">×</button>
-            `;
-            document.body.appendChild(installNotification);
-
-            const installBtn = installNotification.querySelectorAll('button')[0];
-            const closeBtn = installNotification.querySelectorAll('button')[1];
-
-            installBtn.addEventListener('click', async () => {
-                installNotification.remove();
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                console.log(`User response to install prompt: ${outcome}`);
-                deferredPrompt = null;
+        // PWA Install Prompt (wrapped in try-catch)
+        try {
+            let deferredPrompt;
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                console.log('PWA install prompt available');
             });
 
-            closeBtn.addEventListener('click', () => {
-                installNotification.remove();
+            window.addEventListener('appinstalled', () => {
+                console.log('App installed!');
             });
-
-            // Auto-hide after 10 seconds
-            setTimeout(() => {
-                if (installNotification.parentElement) {
-                    installNotification.remove();
-                }
-            }, 10000);
-        });
-
-        // Log when app is installed
-        window.addEventListener('appinstalled', () => {
-            console.log('Vibestream has been installed!');
-            showNotification('Vibestream installed successfully! 🎵');
-        });
+        } catch (e) {
+            console.log('PWA prompt setup error');
+        }
     </script>
 </body>
 </html>
