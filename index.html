@@ -1306,7 +1306,7 @@
         <div class="main-content">
             <!-- Sidebar -->
             <div class="sidebar" id="sidebar">
-                <div class="logo">MAYA WORLD MUSIC <small style="font-size: 10px; opacity: 0.5;">v3.7</small></div>
+                <div class="logo">MAYA WORLD MUSIC <small style="font-size: 10px; opacity: 0.5;">v3.8</small></div>
 
                 <div class="nav-section">
                     <div class="nav-item active" data-view="home">
@@ -1518,7 +1518,8 @@
                 },
                 events: {
                     'onReady': onPlayerReady,
-                    'onStateChange': onPlayerStateChange
+                    'onStateChange': onPlayerStateChange,
+                    'onError': onPlayerError
                 }
             });
         }
@@ -1538,6 +1539,44 @@
             } else if (event.data === YT.PlayerState.PAUSED) {
                 isPlaying = false;
                 updatePlayButtonUI();
+            }
+        }
+
+        // Handle YouTube player errors
+        function onPlayerError(event) {
+            const errorCode = event.data;
+            let errorMessage = 'Cannot play: ';
+
+            switch (errorCode) {
+                case 2:
+                    errorMessage += 'Invalid video ID';
+                    break;
+                case 5:
+                    errorMessage += 'HTML5 player error';
+                    break;
+                case 100:
+                    errorMessage += 'Video not found or private';
+                    break;
+                case 101:
+                case 150:
+                    errorMessage += 'Embedding disabled by owner';
+                    break;
+                default:
+                    errorMessage += 'Error code ' + errorCode;
+            }
+
+            console.error('YouTube error:', errorCode, errorMessage);
+            showNotification(errorMessage);
+
+            isPlaying = false;
+            updatePlayButtonUI();
+
+            // Auto-skip to next track after 2 seconds
+            if (tracks.length > 1 && currentTrack) {
+                setTimeout(() => {
+                    showNotification('Skipping to next track...');
+                    playNext();
+                }, 2000);
             }
         }
 
@@ -3603,7 +3642,7 @@ IMPORTANT:
         }
 
         // Initialize app
-        console.log('🎵 Maya World Music v3.7 loaded!');
+        console.log('🎵 Maya World Music v3.8 loaded!');
         console.log('✅ Features: MP3 Upload, Preview, Settings, Background Playback');
         console.log('YouTube API Key:', youtubeApiKey ? '✅ Set (' + youtubeApiKey.substring(0, 10) + '...)' : '⚠️ Not set (go to Settings to add)');
 
